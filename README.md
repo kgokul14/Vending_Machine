@@ -21,112 +21,74 @@ States: S0 → 0 Rs
 
 # Verilog Code (Moore FSM)
 ```
+`timescale 1ns / 1ps
 module vending_machine(
-    input clk,
-    input rst,
-    input coin5,
-    input coin10,
-    output reg dispense,
-    output reg change
+     input clk,
+     input reset,
+     input coin5,
+     input coin10,
+     output reg product,
+     output reg change
 );
 
-    reg [1:0] state, next_state;
+parameter S0  = 3'b000,
+           S5  = 3'b001,
+           S10 = 3'b010,
+           S15 = 3'b011,
+           S20 = 3'b100;
 
-    parameter S0  = 2'b00;
-    parameter S5  = 2'b01;
-    parameter S10 = 2'b10;
-    parameter S15 = 2'b11;
+reg [2:0] state, next_state;
 
-    // State Register
-    always @(posedge clk or posedge rst) begin
-        if (rst)
-            state <= S0;
-        else
-            state <= next_state;
-    end
+always @(posedge clk) begin
+     if(reset)
+         state <= S0;
+     else
+         state <= next_state;
+end
 
-    // Next State Logic
-    always @(*) begin
-        case(state)
-            S0: begin
-                if (coin5)      next_state = S5;
-                else if (coin10) next_state = S10;
-                else            next_state = S0;
-            end
+always @(*) begin
+     next_state = state;
 
-            S5: begin
-                if (coin5)      next_state = S10;
-                else if (coin10) next_state = S15;
-                else            next_state = S5;
-            end
+     case(state)
+         S0:  begin
+             if(coin5)       next_state = S5;
+             else if(coin10) next_state = S10;
+         end
 
-            S10: begin
-                if (coin5)      next_state = S15;
-                else if (coin10) next_state = S15;
-                else            next_state = S10;
-            end
+         S5:  begin
+             if(coin5)       next_state = S10;
+             else if(coin10) next_state = S15;
+         end
 
-            S15: next_state = S0;
+         S10: begin
+             if(coin5)       next_state = S15;
+             else if(coin10) next_state = S20;
+         end
 
-            default: next_state = S0;
-        endcase
-    end
+         S15: next_state = S0;
 
-    // Output Logic (Moore)
-    always @(*) begin
-        case(state)
-            S15: begin
-                dispense = 1;
-                change   = (coin10);  // change if 20 inserted
-            end
-            default: begin
-                dispense = 0;
-                change   = 0;
-            end
-        endcase
-    end
+         S20: next_state = S0;
+
+         default: next_state = S0;
+     endcase
+end
+
+always @(posedge clk) begin
+     if(reset) begin
+         product <= 0;
+         change  <= 0;
+     end
+     else begin
+         product <= (next_state == S15 || next_state == S20);
+         change  <= (next_state == S20);
+     end
+end
 
 endmodule
 ```
 # Testbench
 ```
-module tb_vending_machine;
 
-    reg clk, rst;
-    reg coin5, coin10;
-    wire dispense, change;
-
-    vending_machine uut(
-        clk, rst, coin5, coin10, dispense, change
-    );
-
-    // Clock generation
-    initial clk = 0;
-    always #5 clk = ~clk;
-
-    initial begin
-        rst = 1;
-        coin5 = 0;
-        coin10 = 0;
-        #10 rst = 0;
-
-        // Insert 5 + 5 + 5
-        #10 coin5 = 1; #10 coin5 = 0;
-        #10 coin5 = 1; #10 coin5 = 0;
-        #10 coin5 = 1; #10 coin5 = 0;
-
-        // Insert 10 + 5
-        #20 coin10 = 1; #10 coin10 = 0;
-        #10 coin5  = 1; #10 coin5 = 0;
-
-        // Insert 10 + 10 (change expected)
-        #20 coin10 = 1; #10 coin10 = 0;
-        #10 coin10 = 1; #10 coin10 = 0;
-
-        #50 $finish;
-    end
-
-endmodule
 ```
 Expected Waveform Behavior
 Case 1: 5 + 5 + 5
